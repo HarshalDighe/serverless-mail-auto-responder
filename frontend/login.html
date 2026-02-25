@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Login | Mail Automation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="login-body">
+
+    <main class="login-container">
+
+        <form class="login-box" onsubmit="event.preventDefault(); login();">
+
+            <h2>🔐 Secure Admin Access</h2>
+            <p class="subtitle">Mail Processing Control Panel</p>
+
+            <!-- Username -->
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="username" 
+                    required 
+                    autocomplete="username"
+                >
+                <label for="username">Username</label>
+            </div>
+
+            <!-- Password -->
+            <div class="input-group">
+                <input 
+                    type="password" 
+                    id="password" 
+                    required 
+                    autocomplete="current-password"
+                >
+                <label for="password">Password</label>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="login-btn">
+                Sign In
+            </button>
+
+            <!-- Error Message -->
+            <p id="errorMsg" class="error-msg"></p>
+
+            <!-- Footer -->
+            <div class="footer-text">
+                © 2026 Mail Automation System  
+                <br>
+                Secure Admin Portal
+            </div>
+
+        </form>
+
+    </main>
+
+    <script src="script.js"></script>
+
+</body>
+</html>

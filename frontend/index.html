@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gmail Auto-Responder App</title>
+
+<style>
+/* BASIC */
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Poppins",sans-serif;}
+body{background:#f3f5ff;padding:20px;}
+
+/* CENTERED AUTH CONTAINER */
+.auth-container{
+    max-width:400px;margin:60px auto;background:#fff;padding:25px;
+    border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,0.08);
+}
+.auth-container h2{text-align:center;margin-bottom:20px;color:#333;}
+.auth-container input{
+    width:100%;padding:12px;margin:10px 0;border-radius:10px;
+    border:1px solid #bbb;font-size:15px;
+}
+.btn{
+    width:100%;padding:12px;background:#3a4fd1;color:#fff;border:none;
+    border-radius:10px;font-size:16px;cursor:pointer;margin-top:10px;
+}
+.switch-link{
+    text-align:center;margin-top:10px;font-size:14px;color:#3a4fd1;cursor:pointer;
+}
+
+/* HIDE DASHBOARD INITIALLY */
+#dashboardPage{display:none;}
+
+/* DASHBOARD PAGE */
+.header{text-align:center;margin-bottom:25px;}
+.header h2{font-size:26px;color:#333;}
+
+.container{max-width:1100px;margin:auto;}
+
+.card{
+    background:#fff;padding:25px;border-radius:16px;margin-bottom:25px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.08);
+}
+
+.card h3{margin-bottom:18px;color:#444;font-size:22px;}
+
+.stats{display:flex;gap:20px;justify-content:space-between;}
+
+.stat-box{
+    flex:1;background:#eef1ff;padding:25px;border-radius:14px;text-align:center;
+}
+.stat-box h1{font-size:40px;color:#3a4fd1;}
+.stat-box p{color:#555;margin-top:8px;}
+
+table{width:100%;border-collapse:collapse;margin-top:15px;}
+table th,table td{
+    text-align:left;padding:14px;border-bottom:1px solid #ddd;font-size:15px;
+}
+table th{background:#3a4fd1;color:#fff;}
+
+.success{
+    background:#28a745;padding:5px 10px;border-radius:6px;color:#fff;font-size:13px;
+}
+.failed{
+    background:#dc3545;padding:5px 10px;border-radius:6px;color:#fff;font-size:13px;
+}
+</style>
+
+</head>
+<body>
+
+<!-- 🔐 LOGIN PAGE -->
+<div id="loginPage" class="auth-container">
+    <h2>Login</h2>
+    <input type="email" id="loginEmail" placeholder="Email">
+    <input type="password" id="loginPass" placeholder="Password">
+    <button class="btn" onclick="login()">Login</button>
+
+    <div class="switch-link" onclick="showSignup()">Create new account</div>
+</div>
+
+<!-- 🆕 SIGNUP PAGE -->
+<div id="signupPage" class="auth-container" style="display:none;">
+    <h2>Create Account</h2>
+    <input type="email" id="signupEmail" placeholder="Email">
+    <input type="password" id="signupPass" placeholder="Password">
+    <button class="btn" onclick="signup()">Sign Up</button>
+
+    <div class="switch-link" onclick="showLogin()">Already have an account?</div>
+</div>
+
+<!-- 📊 DASHBOARD PAGE -->
+<div id="dashboardPage">
+
+    <header class="header">
+        <h2>📨 Gmail Auto-Responder Dashboard</h2>
+    </header>
+
+    <div class="container">
+
+        <!-- Stats -->
+        <section class="card">
+            <h3>Today’s Email Summary</h3>
+            <div class="stats">
+                <div class="stat-box">
+                    <h1 id="totalEmails">0</h1>
+                    <p>Total Emails Checked</p>
+                </div>
+
+                <div class="stat-box">
+                    <h1 id="invoiceEmails">0</h1>
+                    <p>Invoice Emails</p>
+                </div>
+
+                <div class="stat-box">
+                    <h1 id="autoReplies">0</h1>
+                    <p>Auto Replies Sent</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Logs Table -->
+        <section class="card">
+            <h3>Auto-Reply Logs</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Remark</th>
+                        <th>Result</th>
+                        <th>Reply Time</th>
+                    </tr>
+                </thead>
+                <tbody id="logTable"></tbody>
+            </table>
+        </section>
+    </div>
+</div>
+
+<script>
+/* =====================================================
+        🔐 SIMPLE FRONTEND LOGIN / SIGNUP
+   ===================================================== */
+
+function showSignup(){
+    document.getElementById("loginPage").style.display="none";
+    document.getElementById("signupPage").style.display="block";
+}
+function showLogin(){
+    document.getElementById("signupPage").style.display="none";
+    document.getElementById("loginPage").style.display="block";
+}
+
+function signup(){
+    let email = document.getElementById("signupEmail").value;
+    let pass = document.getElementById("signupPass").value;
+
+    if(email === "" || pass === ""){
+        alert("Enter email & password");
+        return;
+    }
+
+    localStorage.setItem("userEmail", email);
+    localStorage.setItem("userPass", pass);
+
+    alert("Account created successfully!");
+    showLogin();
+}
+
+function login(){
+    let email = document.getElementById("loginEmail").value;
+    let pass = document.getElementById("loginPass").value;
+
+    if(email === localStorage.getItem("userEmail") &&
+       pass === localStorage.getItem("userPass")){
+        
+        document.getElementById("loginPage").style.display="none";
+        document.getElementById("signupPage").style.display="none";
+        document.getElementById("dashboardPage").style.display="block";
+
+        loadLogs();
+    } else {
+        alert("Invalid credentials");
+    }
+}
+
+/* =====================================================
+        📡 API: LOAD LOGS FROM DYNAMODB
+   ===================================================== */
+
+const API_URL = "https://3zqly9uvh4.execute-api.us-east-1.amazonaws.com/prod/logs";
+
+async function loadLogs(){
+    try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
+        const logs = data.items || [];
+
+        let total = logs.length;
+        let invoiceCount = 0;
+        let sentCount   = 0;
+        let tableHTML = "";
+
+        logs.forEach(log => {
+
+            // 🔥 FIXED MAPPING (Based exactly on your DynamoDB fields)
+            let email   = log.sender_email || "N/A";
+            let keyword = log.remark || "N/A";
+            let status  = log.result || "N/A";
+            let time    = log.timestamp || "N/A";
+
+            // Count summary
+            if (keyword.toLowerCase().includes("invoice")) invoiceCount++;
+            if (status.toLowerCase() === "sent") sentCount++;
+
+            tableHTML += `
+                <tr>
+                    <td>${email}</td>
+                    <td>${keyword}</td>
+                    <td><span class="${status==="sent"?"success":"failed"}">${status}</span></td>
+                    <td>${time}</td>
+                </tr>
+            `;
+        });
+
+        document.getElementById("logTable").innerHTML = tableHTML;
+        document.getElementById("totalEmails").innerText = total;
+        document.getElementById("invoiceEmails").innerText = invoiceCount;
+        document.getElementById("autoReplies").innerText = sentCount;
+
+    } catch (e){
+        console.error("API ERROR:", e);
+    }
+}
+
+
+// Auto refresh logs every 10 seconds
+setInterval(loadLogs, 10000);
+
+</script>
+</body>
+</html>

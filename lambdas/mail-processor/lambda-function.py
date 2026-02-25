@@ -50,7 +50,7 @@ def lambda_handler(event, context):
 
         service = build('gmail', 'v1', credentials=creds)
 
-        # Pagination support
+        # Get all unread emails (with pagination)
         messages = []
         next_page_token = None
 
@@ -75,17 +75,21 @@ def lambda_handler(event, context):
 
         for msg in messages:
 
-            transaction_id = str(uuid.uuid4())
-            timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            start_time = datetime.datetime.utcnow()
 
-            print(json.dumps({
-                "transaction_id": transaction_id,
-                "status": "Processing email"
-            }))
+            transaction_id = str(uuid.uuid4())
+            timestamp = start_time.strftime("%Y-%m-%d %H:%M:%S")
 
             msg_id = msg['id']
+
+            # Default values
             result = "NO"
             remark = "Keyword not found"
+            auto_reply = False
+            matched_keyword = None
+            status = "FAILED"
+            sender = "unknown"
+            subject = ""
 
             try:
                 message = service.users().messages().get(
@@ -96,11 +100,15 @@ def lambda_handler(event, context):
                 headers = message['payload']['headers']
                 subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "")
                 sender_raw = next((h['value'] for h in headers if h['name'] == 'From'), "")
-
                 sender = extract_email(sender_raw)
 
-                # Keyword check
-                if subject and any(k in subject.lower() for k in KEYWORDS):
+                # Find matched keyword
+                matched_keyword = next(
+                    (k for k in KEYWORDS if subject and k in subject.lower()),
+                    None
+                )
+
+                if matched_keyword:
 
                     template = s3.get_object(
                         Bucket=BUCKET_NAME,
@@ -119,7 +127,9 @@ def lambda_handler(event, context):
                         body={'raw': raw_message}
                     ).execute()
 
+                    auto_reply = True
                     result = "YES"
+                    status = "SUCCESS"
                     remark = "Auto responder sent"
 
                 # Mark email as read
@@ -130,30 +140,35 @@ def lambda_handler(event, context):
                 ).execute()
 
             except Exception as process_error:
-                result = "NO"
                 remark = str(process_error)
-                print(json.dumps({
-                    "transaction_id": transaction_id,
-                    "error": remark
-                }))
+                status = "FAILED"
+                auto_reply = False
 
-            # Store in DynamoDB
+            # Calculate processing time
+            end_time = datetime.datetime.utcnow()
+            processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
+
+            # Store in DynamoDB (ALWAYS STORE)
             try:
-                if result == "YES":
-                    table.put_item(
-                        Item={
+                table.put_item(
+                    Item={
                         'transaction_id': transaction_id,
-                        'sender_email': sender,
                         'timestamp': timestamp,
+                        'sender_email': sender,
+                        'subject': subject,
+                        'auto_reply': auto_reply,
+                        'keyword': matched_keyword if matched_keyword else "none",
+                        'status': status,
                         'result': result,
-                        'remark': remark
+                        'remark': remark,
+                        'processing_time_ms': processing_time_ms
                     }
                 )
+
+                print(f"Stored in DB: {transaction_id}")
+
             except Exception as ddb_error:
-                print(json.dumps({
-                    "transaction_id": transaction_id,
-                    "ddb_error": str(ddb_error)
-                }))
+                print("DynamoDB Error:", str(ddb_error))
 
         print("Lambda completed successfully")
 
